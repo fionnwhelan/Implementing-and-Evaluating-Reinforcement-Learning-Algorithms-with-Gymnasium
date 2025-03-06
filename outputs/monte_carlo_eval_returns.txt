@@ -1,0 +1,7 @@
+Mean final evaluation returns for different gamma values:
+Gamma 0.99: 0.7216
+Gamma 0.8: 0.17160000000000003
+
+All final evaluation returns for different gamma values:
+Gamma 0.99: [0.46, 0.852, 0.724, 0.682, 0.792, 0.672, 0.734, 0.806, 0.682, 0.812]
+Gamma 0.8: [0.218, 0.122, 0.142, 0.332, 0.136, 0.098, 0.1, 0.12, 0.26, 0.188]

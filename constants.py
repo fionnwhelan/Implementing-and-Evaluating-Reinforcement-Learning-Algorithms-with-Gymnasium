@@ -33,7 +33,7 @@ EX3_REINFORCE_CARTPOLE_CONSTANTS["max_timesteps"] = 500000
 EX3_REINFORCE_CARTPOLE_CONSTANTS["algo"] = "Reinforce"
 
 EX3_MOUNTAINCAR_CONSTANTS = {
-    "env": "MountainCar-v0",
+    "env": "CartPole-v0",
     "gamma": 0.99,
     "episode_length": 200,
     "max_time": 120 * 60,

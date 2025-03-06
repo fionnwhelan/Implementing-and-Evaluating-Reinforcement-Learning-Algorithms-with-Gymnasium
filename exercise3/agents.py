@@ -238,6 +238,28 @@ class DQN(Agent):
         :return (sample from self.action_space): action the agent should perform
         """
         ### PUT YOUR CODE HERE ###
+        
+
+        # the forward function appears to expect a pytorch tensor, but obs is a numpy array. Have to convert to pytorch tensor
+        obs_tensor = torch.FloatTensor(obs).unsqueeze(0)  # Add batch dimension and convert to tensor
+        output = self.critics_net.forward(obs_tensor)
+
+        # output will contain a value for each action. Take the argmax to find the best action
+        # Not sure yet if this should return a batch of indices or just one. It seems the batch size is only to do with the update
+        # and the action is just taking one action at each specific timestep. Therefore, should just return the index of the specific action
+        action_index = torch.argmax(output, dim=-1).item() # Item converts the torch tensor to an index. Not sure if it is necessary
+
+        if explore:
+            if np.random.random() < self.epsilon:
+                # sample() returns an integer representing a random sample from the action space
+                return self.action_space.sample()
+            else:
+                return action_index
+
+        # If we have not yet returned at this stage, it means explore is false, and so we just return the index of the best action
+        # Training seems to be done in the same format as the q_learning, so can return the index of the selected action
+        return action_index
+        
         raise NotImplementedError("Needed for Q3")
 
     def update(self, batch: Transition) -> Dict[str, float]:
@@ -253,8 +275,48 @@ class DQN(Agent):
         :return (Dict[str, float]): dictionary mapping from loss names to loss values
         """
         ### PUT YOUR CODE HERE ###
-        raise NotImplementedError("Needed for Q3")
-        q_loss = 0.0
+
+        # batch contains 64 (by default) experiences, in a named tuple
+        # Step 1 - Calculate the y_j for each of the samples in the minibatch
+        # Each of the named items in batch contains a numpy array. Will have to convert to pytorch arrays to be processed by model.
+        # PyTorch models can take batches of inputs, so could process a number of states (64 by default in this case) at the same time
+        # next_states etc. are stored in the replay buffer as numpy arrays, not as State or Action objects, so can convert them directly to torch tensors
+        next_states = torch.FloatTensor(batch.next_states)  # Convert numpy array to PyTorch tensor
+        states = torch.FloatTensor(batch.states)
+        # We use actions to index the output from the model, to access the Q value of the specific action taken. This is why it is a 
+        # LongTensor, which stores integers instead of floats
+        actions = torch.LongTensor(batch.actions.type(torch.int64))
+        rewards = torch.FloatTensor(batch.rewards)
+        done = torch.FloatTensor(batch.done) # batch.done is a numpy array of Boolean values. In the FloatTensor, True will be converted to 1.0 and False to 0.0
+
+        target_q_values = self.critics_target.forward(next_states)
+        max_target_q_values = torch.max(target_q_values, dim=1)[0]  # Max returns max values (as a tensor) as well as max indices (as a tensor). Index with [0] to get max values
+        max_target_q_values = max_target_q_values * (1 - done)  # Zero out values for terminal states. This will result in y just being reward
+        y = rewards + self.gamma * max_target_q_values
+ 
+        q_values = self.critics_net.forward(states)
+        # Have to get the Q value of the action actually taken.
+        q_values_taken = q_values[torch.arange(q_values.shape[0]), actions] # q_values[0] contains the batch size
+
+        loss_vector = (y - q_values_taken)**2
+
+        mean_square_error = loss_vector.mean()
+
+        # Zero out the gradients
+        self.critics_optim.zero_grad()
+
+        # Backpropagate gradients
+        mean_square_error.backward()
+
+        # Update the weights of the network
+        self.critics_optim.step()
+
+        # Have to update the target network if we are at the specified timestep
+        self.update_counter += 1
+        if self.update_counter % self.target_update_freq == 0:
+            self.critics_target.hard_update(self.critics_net)
+
+        q_loss = mean_square_error
         return {"q_loss": q_loss}
 
 
@@ -341,6 +403,18 @@ class Reinforce(Agent):
         :return (sample from self.action_space): action the agent should perform
         """
         ### PUT YOUR CODE HERE ###
+
+        # From Q2
+        # if random.random() <= self.epsilon:
+        #     return random.randint(0, self.n_acts - 1)
+
+        # best_q = float('-inf')
+        # best_act = random.randint(0, self.n_acts - 1)
+        # for act in range(self.n_acts):
+        #     q_act = self.q_table[(obs, act)]
+        #     if q_act > best_q:
+        #         best_act = act
+        #         best_q = q_act
         raise NotImplementedError("Needed for Q3")
 
     def update(
