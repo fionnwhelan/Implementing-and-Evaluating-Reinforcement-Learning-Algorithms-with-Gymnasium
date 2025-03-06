@@ -238,28 +238,7 @@ class DQN(Agent):
         :return (sample from self.action_space): action the agent should perform
         """
         ### PUT YOUR CODE HERE ###
-        
-
-        # the forward function appears to expect a pytorch tensor, but obs is a numpy array. Have to convert to pytorch tensor
-        obs_tensor = torch.FloatTensor(obs).unsqueeze(0)  # Add batch dimension and convert to tensor
-        output = self.critics_net.forward(obs_tensor)
-
-        # output will contain a value for each action. Take the argmax to find the best action
-        # Not sure yet if this should return a batch of indices or just one. It seems the batch size is only to do with the update
-        # and the action is just taking one action at each specific timestep. Therefore, should just return the index of the specific action
-        action_index = torch.argmax(output, dim=-1).item() # Item converts the torch tensor to an index. Not sure if it is necessary
-        # print('DBUG: action index: ', action_index)
-        if explore:
-            if np.random.random() < self.epsilon:
-                # sample() returns an integer representing a random sample from the action space
-                # print('DBUG random sample: ', self.action_space.sample())
-                return self.action_space.sample()
-            else:
-                return action_index
-
-        # If we have not yet returned at this stage, it means explore is false, and so we just return the index of the best action
-        # Training seems to be done in the same format as the q_learning, so can return the index of the selected action
-        return action_index
+        raise NotImplementedError("Needed for Q3")
 
     def update(self, batch: Transition) -> Dict[str, float]:
         """Update function for DQN
@@ -274,61 +253,61 @@ class DQN(Agent):
         :return (Dict[str, float]): dictionary mapping from loss names to loss values
         """
         ### PUT YOUR CODE HERE ###
-
-        # batch contains 64 (by default) experiences, in a named tuple
-        # Step 1 - Calculate the y_j for each of the samples in the minibatch
-        # Each of the named items in batch contains a numpy array. Will have to convert to pytorch arrays to be processed by model.
-        # PyTorch models can take batches of inputs, so could process a number of states (64 by default in this case) at the same time
-        # next_states etc. are stored in the replay buffer as numpy arrays, not as State or Action objects, so can convert them directly to torch tensors
-        next_states = torch.FloatTensor(batch.next_states)  # Convert numpy array to PyTorch tensor
-        states = torch.FloatTensor(batch.states)
-        # We use actions to index the output from the model, to access the Q value of the specific action taken. This is why it is a 
-        # LongTensor, which stores integers instead of floats
-        actions = torch.LongTensor(batch.actions.type(torch.int64))
-        rewards = torch.FloatTensor(batch.rewards)
-        done = torch.FloatTensor(batch.done) # batch.done is a numpy array of Boolean values. In the FloatTensor, True will be converted to 1.0 and False to 0.0
-
-        target_q_values = self.critics_target.forward(next_states)
-        max_target_q_values = torch.max(target_q_values, dim=1)[0]  # Max returns max values (as a tensor) as well as max indices (as a tensor). Index with [0] to get max values
-        # print('DBUG: max target q values shape: ', max_target_q_values.shape)
-        # print('DBUG done shape: ', done.shape)
-
-        # Zero out values for terminal states. This will result in y just being reward. Have to squeeze done as it is of shape [64, 1] which results in incorrect
-        # broadcasting with max_target_q_values which is of shape [64]
-        max_target_q_values = max_target_q_values * (1 - done.squeeze())  
-        # print('DBUG: max target q values after masking shape and type : ', max_target_q_values.shape, type(max_target_q_values))
-        y = rewards + self.gamma * max_target_q_values
- 
-        q_values = self.critics_net.forward(states)
-        # Have to get the Q value of the action actually taken.
-        q_values_taken = q_values[torch.arange(q_values.shape[0]), actions] # q_values[0] contains the batch size
-
-        loss_vector = (y - q_values_taken)**2
-
-        mean_square_error = loss_vector.mean()
-
-        # Zero out the gradients
-        self.critics_optim.zero_grad()
-
-        # Backpropagate gradients
-        mean_square_error.backward()
-
-        # Update the weights of the network
-        self.critics_optim.step()
-
-        # Have to update the target network if we are at the specified timestep
-        self.update_counter += 1
-        if self.update_counter % self.target_update_freq == 0:
-            self.critics_target.hard_update(self.critics_net)
-
-        q_loss = mean_square_error
+        raise NotImplementedError("Needed for Q3")
+        q_loss = 0.0
         return {"q_loss": q_loss}
 
 
-class Reinforce(Agent):
-    """ The Reinforce Agent for Ex 3
+class DiscreteRL(Agent):
+    """ The DiscreteRL Agent for Ex 3 
+    """
 
-    ** YOU NEED TO IMPLEMENT THE FUNCTIONS IN THIS CLASS **
+    def __init__(self, alpha: float, **kwargs):
+        """Constructor of QLearningAgent
+
+        Initializes some variables of the Q-Learning agent, namely the epsilon, discount rate
+        and learning rate alpha.
+
+        :param alpha (float): learning rate alpha for Q-learning updates
+        """
+
+        super().__init__(**kwargs)
+        self.alpha: float = alpha
+
+    def learn(
+        self, obs: int, action: int, reward: float, n_obs: int, done: bool
+    ) -> float:
+        """Updates the Q-table based on agent experience
+
+        ** YOU NEED TO IMPLEMENT THIS FUNCTION FOR Q3 BUT YOU CAN REUSE YOUR Q LEARNING CODE FROM Q2 **
+
+                :param obs (int): received observation representing the current environmental state
+        :param action (int): index of applied action
+        :param reward (float): received reward
+        :param n_obs (int): received observation representing the next environmental state
+        :param done (bool): flag indicating whether a terminal state has been reached
+        :return (float): updated Q-value for current observation-action pair
+        """
+        ### PUT YOUR CODE HERE ###
+        raise NotImplementedError("Needed for Q2")
+        return self.q_table[(obs, action)]
+
+    def schedule_hyperparameters(self, timestep: int, max_timestep: int):
+        """Updates the hyperparameters
+
+        ** YOU CAN CHANGE THE PROVIDED SCHEDULING **
+
+        This function is called before every episode and allows you to schedule your
+        hyperparameters.
+
+        :param timestep (int): current timestep at the beginning of the episode
+        :param max_timestep (int): maximum timesteps that the training loop will run for
+        """
+        self.epsilon = 1.0 - (min(1.0, timestep / (0.20 * max_timestep))) * 0.99
+
+
+    """
+    ** YOU NEED TO IMPLEMENT THE FUNCTIONS IN THIS CLASS BASED ON YOUR WORK FOR EX 2**
 
     :attr policy (FCNetwork): fully connected network for policy
     :attr policy_optim (torch.optim): PyTorch optimiser for policy network
@@ -399,27 +378,24 @@ class Reinforce(Agent):
         """Returns an action (should be called at every timestep)
 
         **YOU MUST IMPLEMENT THIS FUNCTION FOR Q3**
-
-        Select an action from the model's stochastic policy by sampling a discrete action
-        from the distribution specified by the model output
-
+        
         :param obs (np.ndarray): observation vector from the environment
         :param explore (bool): flag indicating whether we should explore
         :return (sample from self.action_space): action the agent should perform
+
+        ** For the discrete case you would discetise the observations **
+
+        Mountain car: e.g. 8x8 over (-0.6,1.2)x(-0.07,0.07)
+
+        For cartpole (not required here!) the actions are F=+10, F=0, or F=-10 and there are
+        N=162=3*3*6*3 states which are derived from the 4D continuous state space by the following conditions:
+        cart position: x <= -0.8 | -0.8 < x <= 0.8 | 0.8 < x
+        cart velocity: x-dot <= -0.5 | -0.5< x-dot <= 0.5 | 0.5 < x-dot
+        pole angle: theta <= -0.105 | -0.105 < theta <= -0.0175) | -0.0175 < theta <= 0.0) 
+        | 0.0 < theta <= 0.0175) | 0.0175 < theta <= 0.105) | 0.105 < theta
+        pole angular velocity: theta-dot <= -0.872 | -0.872 < theta-dot <= 0.872 | 0.872 < theta-dot 
         """
         ### PUT YOUR CODE HERE ###
-
-        # From Q2
-        # if random.random() <= self.epsilon:
-        #     return random.randint(0, self.n_acts - 1)
-
-        # best_q = float('-inf')
-        # best_act = random.randint(0, self.n_acts - 1)
-        # for act in range(self.n_acts):
-        #     q_act = self.q_table[(obs, act)]
-        #     if q_act > best_q:
-        #         best_act = act
-        #         best_q = q_act
         raise NotImplementedError("Needed for Q3")
 
     def update(

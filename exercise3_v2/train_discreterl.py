@@ -1,18 +1,16 @@
 import copy
 import pickle
+from collections import defaultdict
 
 import gymnasium as gym
 import numpy as np
 import time
 from tqdm import tqdm
 from typing import List, Tuple, Dict
-from collections import defaultdict
-import matplotlib.pyplot as plt
 
-from rl2025.constants import EX3_DQN_CARTPOLE_CONSTANTS as CARTPOLE_CONSTANTS
+from rl2025.constants import EX3_DISCRETERL_CARTPOLE_CONSTANTS as CARTPOLE_CONSTANTS
 from rl2025.constants import EX3_DQN_MOUNTAINCAR_CONSTANTS as MOUNTAINCAR_CONSTANTS
-from rl2025.exercise3.agents import DQN
-from rl2025.exercise3.replay import ReplayBuffer
+from rl2025.exercise3.agents import DiscreteRL
 from rl2025.util.hparam_sweeping import generate_hparam_configs
 from rl2025.util.result_processing import Run
 
@@ -21,8 +19,7 @@ SWEEP = False # TRUE TO SWEEP OVER POSSIBLE HYPERPARAMETER CONFIGURATIONS
 NUM_SEEDS_SWEEP = 10 # NUMBER OF SEEDS TO USE FOR EACH HYPERPARAMETER CONFIGURATION
 SWEEP_SAVE_RESULTS = True # TRUE TO SAVE SWEEP RESULTS TO A FILE
 SWEEP_SAVE_ALL_WEIGHTS = False # TRUE TO SAVE ALL WEIGHTS FROM EACH SEED
-ENV = "MOUNTAINCAR" # "CARTPOLE" is also possible if you uncomment the corresponding code, but is not assessed for DQN.
-
+ENV = "MOUNTAINCAR" # "CARTPOLE" is also possible if you uncomment the corresponding code, but is not assessed here.
 
 ### ASSIGNMENT: CHANGE epsilon_decay_strategy: "constant" TO "linear" OR "exponential" TO ANSWER QUESTIONS 3.2 TO 3.6 IN answer_sheet.py ###
 MOUNTAINCAR_CONFIG = {
@@ -31,7 +28,7 @@ MOUNTAINCAR_CONFIG = {
     "learning_rate": 3e-4,
     "hidden_size": (64,64),
     "target_update_freq": 2000,
-    "batch_size": 64,
+    "batch_size": 64,   # not used here
     "epsilon_decay_strategy": "constant", # "constant" or "linear" or "exponential"
     "epsilon_start": 0.5,
     "epsilon_min": 0.05, # only used in linear and exponential decay strategies
@@ -60,163 +57,160 @@ elif MOUNTAINCAR_CONFIG['epsilon_decay_strategy'] == "exponential":
 else:
     MOUNTAINCAR_HPARAMS = None
 
-SWEEP_RESULTS_FILE_MOUNTAINCAR = f"DQN-MountainCar-sweep-decay-{MOUNTAINCAR_CONFIG['epsilon_decay_strategy']}-results.pkl"
+SWEEP_RESULTS_FILE_MOUNTAINCAR = f"DiscreteRL-MountainCar-sweep-decay-{MOUNTAINCAR_CONFIG['epsilon_decay_strategy']}-results.pkl"
+
+
 
 CARTPOLE_CONFIG = {
-    "eval_freq": 2000,
+    "eval_freq": 10000,
     "eval_episodes": 100,
-    "learning_rate": 1e-3,
     "hidden_size": (64,),
-    "target_update_freq": 2000,
-    "batch_size": 64,
-    "epsilon_decay_strategy": "constant",
-    "epsilon_start": .25,
-    "epsilon_min": None,
-    "epsilon_decay": None,
-    "exploration_fraction": None,
-    "buffer_capacity": int(1e6),
-    "plot_loss": False, # SET TRUE FOR 3.3 (Understanding the Loss)
+    "learning_rate": 1e-3,
 }
+
 CARTPOLE_CONFIG.update(CARTPOLE_CONSTANTS)
 
+CARTPOLE_HPARAMS = {
+    "learning_rate": [2e-2, 2e-3, 2e-4],
+    }
+
+SWEEP_RESULTS_FILE_CARTPOLE = "DiscreteRL-CartPole-sweep-results.pkl"
+
+
 def play_episode(
-    env,
-    agent,
-    replay_buffer,
-    train=True,
+    env: gym.Env,
+    agent: DiscreteRL,
+    train: bool = True,
     explore=True,
     render=False,
     max_steps=200,
-    batch_size=64,
-):
-    if render:
-        env = gym.make(CONFIG["env"], render_mode="human")
+) -> Tuple[int, float, Dict]:
+    """
+    Play one episode and train discrete RL algorithm
+
+    :param env (gym.Env): gym environment
+    :param agent (DiscreteRL): DiscreteRL agent
+    :param train (bool): flag whether training should be executed
+    :param explore (bool): flag whether exploration is used
+    :param render (bool): flag whether environment should be visualised
+    :param max_steps (int): max number of timesteps for the episode
+    :return (Tuple[int, float]): total number of executed steps and received reward
+    """
+
     ep_data = defaultdict(list)
     obs, _ = env.reset()
-    done = False
+    """
+    The observation space for position and velocity is (-1.2,0.6)x(-0.07,0.07).
+    You can discretise the space in 8x8 cells.
+    """
 
-    episode_timesteps = 0
+    if render:
+        env = gym.make(CONFIG["env"], render_mode="human")
+
+    done = False
+    num_steps = 0
     episode_return = 0
 
-    while not done:
-        action = agent.act(obs, explore=explore)
-        nobs, reward, terminated, truncated, _ = env.step(action)
+    observations = []
+    actions = []
+    rewards = []
+
+    while not done and num_steps < max_steps:
+        action = agent.act(np.array(obs), explore=explore)
+        nobs, rew, terminated, truncated, _ = env.step(action)
         done = terminated or truncated
-        if train:
-            replay_buffer.push(
-                np.array(obs, dtype=np.float32),
-                np.array([action], dtype=np.float32),
-                np.array(nobs, dtype=np.float32),
-                np.array([reward], dtype=np.float32),
-                np.array([done], dtype=np.float32),
-            )
-            if len(replay_buffer) >= batch_size:
-                batch = replay_buffer.sample(batch_size)
-                new_data = agent.update(batch)
-                for k, v in new_data.items():
-                    ep_data[k].append(v)
 
-        episode_timesteps += 1
-        episode_return += reward
+        observations.append(obs)
+        actions.append(action)
+        rewards.append(rew)
 
-        if max_steps == episode_timesteps:
-            break
+        num_steps += 1
+        episode_return += rew
+
         obs = nobs
 
-    return episode_timesteps, episode_return, ep_data
+    if train:
+        new_data = agent.update(rewards, observations, actions)
+        for k, v in new_data.items():
+            ep_data[k].append(v)
+
+    return num_steps, episode_return, ep_data
 
 
 def train(env: gym.Env, config, output: bool = True) -> Tuple[np.ndarray, np.ndarray, np.ndarray, Dict]:
-    """     
-    Execute training of DQN on given environment using the provided configuration
-      
+    """
+    Execute training of DISCRETE_RL on given environment using the provided configuration
+
     :param env (gym.Env): environment to train on
     :param config: configuration dictionary mapping configuration keys to values
     :param output (bool): flag whether evaluation results should be printed
-    :return (Tuple[np.ndarray, np.ndarray, np.ndarray, Dict]): average eval returns during training, evaluation
-            timesteps, compute times at evaluation and a dictionary containing other training metrics specific to DQN
+    :return (Tuple[np.ndarray, np.ndarray, np.ndarray]): average eval returns during training, evaluation
+            timesteps and compute times at evaluation
     """
     timesteps_elapsed = 0
 
-    agent = DQN(
+    agent = DiscreteRL(
         action_space=env.action_space, observation_space=env.observation_space, **config
     )
-    replay_buffer = ReplayBuffer(config["buffer_capacity"])
 
+    total_steps = config["max_timesteps"]
     eval_returns_all = []
     eval_timesteps_all = []
     eval_times_all = []
+    run_data = defaultdict(list)
 
     start_time = time.time()
-    run_data = defaultdict(list)
-    with tqdm(total=config["max_timesteps"]) as pbar:
-        while timesteps_elapsed < config["max_timesteps"]:
+    with tqdm(total=total_steps) as pbar:
+        while timesteps_elapsed < total_steps:
             elapsed_seconds = time.time() - start_time
             if elapsed_seconds > config["max_time"]:
                 pbar.write(f"Training ended after {elapsed_seconds}s.")
                 break
-            agent.schedule_hyperparameters(timesteps_elapsed, config["max_timesteps"])
-            episode_timesteps, ep_return, ep_data = play_episode(
+            agent.schedule_hyperparameters(timesteps_elapsed, total_steps)
+            num_steps, ep_return, ep_data = play_episode(
                 env,
                 agent,
-                replay_buffer,
                 train=True,
                 explore=True,
                 render=False,
                 max_steps=config["episode_length"],
-                batch_size=config["batch_size"],
             )
-            timesteps_elapsed += episode_timesteps
-            pbar.update(episode_timesteps)
+            timesteps_elapsed += num_steps
+            pbar.update(num_steps)
             for k, v in ep_data.items():
                 run_data[k].extend(v)
             run_data["train_ep_returns"].append(ep_return)
 
-            if timesteps_elapsed % config["eval_freq"] < episode_timesteps:
-                eval_returns = 0
-                if config["env"] == "CartPole-v0" or config["env"] == "MountainCar-v0":
+            if timesteps_elapsed % config["eval_freq"] < num_steps:
+                eval_return = 0
+                if config["env"] == "CartPole-v1":
                     max_steps = config["episode_length"]
                 else:
                     raise ValueError(f"Unknown environment {config['env']}")
 
                 for _ in range(config["eval_episodes"]):
-                    _, episode_return, _ = play_episode(
+                    _, total_reward, _ = play_episode(
                         env,
                         agent,
-                        replay_buffer,
                         train=False,
                         explore=False,
                         render=RENDER,
                         max_steps=max_steps,
-                        batch_size=config["batch_size"],
                     )
-                    eval_returns += episode_return / config["eval_episodes"]
+                    eval_return += total_reward / (config["eval_episodes"])
                 if output:
                     pbar.write(
-                        f"Evaluation at timestep {timesteps_elapsed} returned a mean returns of {eval_returns}"
+                        f"Evaluation at timestep {timesteps_elapsed} returned a mean return of {eval_return}"
                     )
-                    pbar.write(f"Epsilon = {agent.epsilon}")
-                eval_returns_all.append(eval_returns)
+                eval_returns_all.append(eval_return)
                 eval_timesteps_all.append(timesteps_elapsed)
                 eval_times_all.append(time.time() - start_time)
 
-        # you may add logging of additional metrics here
-        run_data["train_timesteps"] = (config["batch_size"] * np.arange(1, len(run_data["q_loss"]) + 1)).tolist()
-        run_data["train_episodes"] = np.arange(1, len(run_data["train_ep_returns"]) + 1).tolist()
-        
     if config["save_filename"]:
         print("\nSaving to: ", agent.save(config["save_filename"]))
 
-    if config["plot_loss"]:
-        print("Plotting DQN loss...")
-        plt.plot(run_data["train_timesteps"], run_data["q_loss"], "-", alpha=0.7)
-        plt.xlabel("Timesteps", fontsize=30)
-        plt.ylabel("DQN Loss", fontsize=30)
-        plt.xticks(fontsize=25)
-        plt.yticks(fontsize=25)
-        plt.tight_layout(pad=0.3)
-
-        plt.show()
+    # you may add logging of additional metrics here
+    run_data["train_episodes"] = np.arange(1, len(run_data["train_ep_returns"]) + 1).tolist()
 
     return np.array(eval_returns_all), np.array(eval_timesteps_all), np.array(eval_times_all), run_data
 
@@ -229,14 +223,14 @@ if __name__ == "__main__":
         SWEEP_RESULTS_FILE = SWEEP_RESULTS_FILE_MOUNTAINCAR
     elif ENV == "CARTPOLE":
         CONFIG = CARTPOLE_CONFIG
-        HPARAMS_SWEEP = None
-        SWEEP_RESULTS_FILE = None
+        HPARAMS_SWEEP = CARTPOLE_HPARAMS
+        SWEEP_RESULTS_FILE = SWEEP_RESULTS_FILE_CARTPOLE
     else:
         raise(ValueError(f"Unknown environment {ENV}"))
 
     env = gym.make(CONFIG["env"])
 
-    if SWEEP and HPARAMS_SWEEP is not None:
+    if SWEEP:
         config_list, swept_params = generate_hparam_configs(CONFIG, HPARAMS_SWEEP)
         results = []
         for config in config_list:
@@ -256,11 +250,8 @@ if __name__ == "__main__":
                   f"Mean final score: {run.final_return_mean} +- {run.final_return_ste}")
 
         if SWEEP_SAVE_RESULTS:
-            print(f"Saving results to {SWEEP_RESULTS_FILE}")
             with open(SWEEP_RESULTS_FILE, 'wb') as f:
                 pickle.dump(results, f)
-
     else:
         _ = train(env, CONFIG)
-
     env.close()
