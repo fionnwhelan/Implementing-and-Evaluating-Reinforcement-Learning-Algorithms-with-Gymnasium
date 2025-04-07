@@ -4,6 +4,7 @@ import random
 from typing import List, Dict, DefaultDict
 from gymnasium.spaces import Space
 from gymnasium.spaces.utils import flatdim
+import numpy as np
 
 class Agent(ABC):
     """Base class for Q-Learning agent
@@ -58,21 +59,18 @@ class Agent(ABC):
         # For example, the goal position in the 4x4 map can be calculated as follows: 3 * 4 + 3 = 15. The 
         # number of possible observations is dependent on the size of the map
 
-        if random.random() <= self.epsilon:
+        if random.random() < self.epsilon:
             return random.randint(0, self.n_acts - 1)
 
-        best_q = float('-inf')
-        best_act = random.randint(0, self.n_acts - 1)
-        for act in range(self.n_acts):
-            q_act = self.q_table[(obs, act)]
-            if q_act > best_q:
-                best_act = act
-                best_q = q_act
+        else:
+            # Get Q-values for all actions in current state
+            q_values = [self.q_table[(obs, a)] for a in range(self.n_acts)]
+            # Return action with highest Q-value (randomly break ties)
+            return np.random.choice(np.flatnonzero(q_values == np.max(q_values)))
         
-
         # raise NotImplementedError("Needed for Q2")
         ### RETURN AN ACTION HERE ###
-        return best_act
+       
 
     @abstractmethod
     def schedule_hyperparameters(self, timestep: int, max_timestep: int):

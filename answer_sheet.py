@@ -17,7 +17,7 @@ def question2_1() -> str:
     b) 0.8
     return: (str): your answer as a string. accepted strings: "a" or "b"
     """
-    answer = ""  # TYPE YOUR ANSWER HERE "a" or "b"
+    answer = "a"  # TYPE YOUR ANSWER HERE "a" or "b"
     return answer
 
 
@@ -29,7 +29,7 @@ def question2_2() -> str:
     b) 0.8
     return: (str): your answer as a string. accepted strings: "a" or "b"
     """
-    answer = ""  # TYPE YOUR ANSWER HERE "a" or "b"
+    answer = "a"  # TYPE YOUR ANSWER HERE "a" or "b"
     return answer
 
 
@@ -42,7 +42,7 @@ def question2_3() -> str:
     b) Every-Visit Monte Carlo
     return: (str): your answer as a string. accepted strings: "a" or "b"
     """
-    answer = ""  # TYPE YOUR ANSWER HERE "a" or "b"
+    answer = "b"  # TYPE YOUR ANSWER HERE "a" or "b"
     return answer
 
 
@@ -53,7 +53,7 @@ def question2_4() -> str:
     by [Q-learning / Every-Visit Monte Carlo] when compared to the other algorithm.
     return: answer (str): your answer as a string (100 words max)
     """
-    answer = ""  # TYPE YOUR ANSWER HERE (100 words max)
+    answer = "In every visit Monte Carlo, we directly discount the return using gamma all the way to the end of the episode. This has an immediate impact on the Q values we calculate for each state action pair. In contrast, Q-learning bootstraps updates just one step into the future. Resultingly, gamma doesn't have as direct an effect on the Q-values learned during Q-learning as it does on every visit Monte Carlo. As a result, changing gamma has a more gradual effect in Q-learning, and so we notice a smaller impact on the evaluation returns compared to Monte Carlo."  # TYPE YOUR ANSWER HERE (100 words max)
     return answer
 
 def question2_5() -> str:
@@ -62,7 +62,7 @@ def question2_5() -> str:
     Provide a short explanation (<200 words) on the differences between the non-slippery and the slippery varian of the problem for [Q-learning / Every-Visit Monte Carlo].
     return: answer (str): your answer as a string (200 words max)
     """
-    answer = ""  # TYPE YOUR ANSWER HERE (200 words max)
+    answer = "In general, higher returns are observed in the non-slippery case. In the slippery case, state transitions are outside the full control of the agent. This means it may end up in a hole even when it's action selected is not to do so. Particularly, in our map, the reward is at the bottom right. It has to navigate down a narrow corridor beside two holes in order to reach the reward. In the slippery case, it is more likely to fall in the holes, particularly in these locations, where there is nowhere else to navigate. "  # TYPE YOUR ANSWER HERE (200 words max)
     return answer
 
 
@@ -79,7 +79,7 @@ def question3_1() -> str:
     c) 2e-4
     return: (str): your answer as a string. accepted strings: "a", "b" or "c"
     """
-    answer = ""  # TYPE YOUR ANSWER HERE "a", "b" or "c"
+    answer = "a"  # TYPE YOUR ANSWER HERE "a", "b" or "c"
     return answer
 
 
@@ -93,7 +93,7 @@ def question3_2() -> str:
     c) 0.01
     return: (str): your answer as a string. accepted strings: "a", "b" or "c"
     """
-    answer = ""  # TYPE YOUR ANSWER HERE "a", "b" or "c"
+    answer = "c"  # TYPE YOUR ANSWER HERE "a", "b" or "c"
     return answer
 
 
@@ -107,7 +107,7 @@ def question3_3() -> str:
     c) 1e-5
     return: (str): your answer as a string. accepted strings: "a", "b" or "c"
     """
-    answer = ""  # TYPE YOUR ANSWER HERE "a", "b" or "c"
+    answer = "c"  # TYPE YOUR ANSWER HERE "a", "b" or "c"
     return answer
 
 
@@ -123,7 +123,7 @@ def question3_4() -> str:
     e) it depends on the number of training timesteps
     return: (str): your answer as a string. accepted strings: "a", "b", "c", "d" or "e"
     """
-    answer = ""  # TYPE YOUR ANSWER HERE "a", "b", "c", "d" or "e"
+    answer = "b"  # TYPE YOUR ANSWER HERE "a", "b", "c", "d" or "e"
     return answer
 
 
@@ -139,7 +139,7 @@ def question3_5() -> str:
     e) it depends on the number of training timesteps
     return: (str): your answer as a string. accepted strings: "a", "b", "c", "d" or "e"
     """
-    answer = ""  # TYPE YOUR ANSWER HERE "a", "b", "c", "d" or "e"
+    answer = "e"  # TYPE YOUR ANSWER HERE "a", "b", "c", "d" or "e"
     return answer
 
 
@@ -152,7 +152,7 @@ def question3_6() -> str:
     strategy you implemented).
     return: answer (str): your answer as a string (100 words max)
     """
-    answer = ""  # TYPE YOUR ANSWER HERE (100 words max)
+    answer = "In our implementation of the exponential decay strategy, the epsilon is decayed at the end of each episode, based on the value of epsilon before that episode began. Resultingly, the rate at which the value of epsilon decays is highly dependent on the number of timesteps per episode. If episodes are short (as in the case in some environments), epsilon will be decayed rapidly, while if they are long, epsilon will be decayed more slowly. This makes it less applicable across different environments compared to strategies based on an exploration fraction, which doesn't depend on episode length."  # TYPE YOUR ANSWER HERE (100 words max)
     return answer
 
 
@@ -163,7 +163,7 @@ def question3_7() -> str:
     (where we usually see a fairly steady decrease of the loss throughout training)
     return: answer (str): your answer as a string (150 words max)
     """
-    answer = ""  # TYPE YOUR ANSWER HERE (150 words max)
+    answer = "As the agent gets better at playing the game, estimating the reward becomes more difficult (in our case, because it is no longer always -200). As the agent learns to reach the goal the episode length, and therefore reward, become more variable, and therefore harder for the Q network to estimate. This results in an increase in the loss throughout training. "  # TYPE YOUR ANSWER HERE (150 words max)
     return answer
 
 
@@ -174,7 +174,7 @@ def question3_8() -> str:
     the DQN training process.
     return: answer (str): your answer as a string (100 words max)
     """
-    answer = ""  # TYPE YOUR ANSWER HERE (100 words max)
+    answer = "The spikes are due to the target network being updated. It can be seen from the graph that these updates occur every 2000 timesteps, which is our target update frequency. When we update our target network, we are essentially shifting the target the Q-network is aiming towards. This means the Q-network has to readjust towards the new target. Before it has time to readjust, it will produce a large loss on the new target. "  # TYPE YOUR ANSWER HERE (100 words max)
     return answer
 
 
@@ -193,5 +193,5 @@ def question5_1() -> str:
     are submitting your answer. This can be for example by submission of a PDF or by a link. 
     return: answer (str): your answer as a string (200 words max)
     """
-    answer = ""  # TYPE YOUR ANSWER HERE (200 words max)
+    answer = "PDF"  # TYPE YOUR ANSWER HERE (200 words max)
     return answer

@@ -106,35 +106,35 @@ def train(env, config):
     return total_reward, evaluation_return_means, evaluation_negative_returns, agent.q_table
 
 
-# if __name__ == "__main__":
-#     env = gym.make(CONFIG["env"])
-#     total_reward, _, _, q_table = train(env, CONFIG)
-
 if __name__ == "__main__":
     env = gym.make(CONFIG["env"])
-    configurations = [{"gamma": 0.99}, {"gamma": 0.8}]
-    gamma_final_eval_returns = {}
-    mean_final_eval_returns = {}
-    for config in configurations:
-        CONFIG.update(config)
-        gamma_final_eval_returns[CONFIG['gamma']] = []
-        for _ in range(10):
-            total_reward, evaluation_return_means, _, q_table = train(env, CONFIG)
-            gamma_final_eval_returns[CONFIG['gamma']].append(evaluation_return_means[-1])
-        mean_final_eval_returns[CONFIG['gamma']] = sum(gamma_final_eval_returns[CONFIG['gamma']]) / len(gamma_final_eval_returns[CONFIG['gamma']])
+    total_reward, eval_means, _, q_table = train(env, CONFIG)
 
-    # Save the evaluation returns to a file
+# if __name__ == "__main__":
+#     env = gym.make(CONFIG["env"])
+#     configurations = [{"gamma": 0.99}, {"gamma": 0.8}]
+#     gamma_final_eval_returns = {}
+#     mean_final_eval_returns = {}
+#     for config in configurations:
+#         CONFIG.update(config)
+#         gamma_final_eval_returns[CONFIG['gamma']] = []
+#         for _ in range(10):
+#             total_reward, evaluation_return_means, _, q_table = train(env, CONFIG)
+#             gamma_final_eval_returns[CONFIG['gamma']].append(evaluation_return_means[-1])
+#         mean_final_eval_returns[CONFIG['gamma']] = sum(gamma_final_eval_returns[CONFIG['gamma']]) / len(gamma_final_eval_returns[CONFIG['gamma']])
 
-    if not os.path.exists('outputs'):
-        os.makedirs('outputs')
+#     # Save the evaluation returns to a file
+
+#     if not os.path.exists('outputs'):
+#         os.makedirs('outputs')
         
-    with open('outputs/monte_carlo_eval_returns.txt', 'w') as f:
-        f.write("Mean final evaluation returns for different gamma values:\n")
-        for gamma, mean_return in mean_final_eval_returns.items():
-            f.write(f"Gamma {gamma}: {mean_return}\n")
+#     with open('outputs/monte_carlo_eval_returns.txt', 'w') as f:
+#         f.write("Mean final evaluation returns for different gamma values:\n")
+#         for gamma, mean_return in mean_final_eval_returns.items():
+#             f.write(f"Gamma {gamma}: {mean_return}\n")
         
-        f.write("\nAll final evaluation returns for different gamma values:\n")
-        for gamma, returns in gamma_final_eval_returns.items():
-            f.write(f"Gamma {gamma}: {returns}\n")
+#         f.write("\nAll final evaluation returns for different gamma values:\n")
+#         for gamma, returns in gamma_final_eval_returns.items():
+#             f.write(f"Gamma {gamma}: {returns}\n")
 
-    print("Evaluation returns saved to monte_carlo_eval_returns.txt")
+#     print("Evaluation returns saved to monte_carlo_eval_returns.txt")

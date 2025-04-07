@@ -1,0 +1,1 @@
+I have added a function that detaches tensors when deep copying the run class, as it originally gave an error.  I have also adjusted the file name to remove the ':', as this also gave me an error.

@@ -19,7 +19,7 @@ class DiagGaussian(torch.nn.Module):
         self.std = std
 
     def sample(self):
-        eps = Variable(torch.randn(*self.mean.size()))
+        eps = Variable(torch.randn(*self.mean.size())) # Reparameterisation trick - sample from standard normal, then shift mean and scale std
         return self.mean + self.std * eps
 
 
@@ -179,7 +179,19 @@ class DDPG(Agent):
         :return (sample from self.action_space): action the agent should perform
         """
         ### PUT YOUR CODE HERE ###
-        raise NotImplementedError("Needed for Q4")
+        # Need to convert obs to a torch Tensor so it can be passed to actor network
+        obs = torch.tensor(obs, dtype=torch.float32)
+        if explore:
+            action = self.actor.forward(obs) + self.noise.sample()
+        else:
+            action = self.actor.forward(obs) 
+
+        action = action.detach().numpy() # Gymnasium environment expects Numpy arrays for actions, so convert Torch tensor to numpy array. Also need to detach
+        
+        action = np.clip(action, self.lower_action_bound, self.upper_action_bound)
+
+        return action
+        
 
     def update(self, batch: Transition) -> Dict[str, float]:
         """Update function for DQN
@@ -194,10 +206,39 @@ class DDPG(Agent):
         :return (Dict[str, float]): dictionary mapping from loss names to loss values
         """
         ### PUT YOUR CODE HERE ###
-        raise NotImplementedError("Needed for Q4")
+        # raise NotImplementedError("Needed for Q4")
+        
+        ## Updating critic network
+        target_actor_network = self.actor_target.forward(batch.next_states)
+ 
+        target_critic_network = self.critic_target.forward(torch.cat((target_actor_network, batch.next_states), dim = 1)) # Will have to check if the + broadcasts these correctly
+        y = batch.rewards + self.gamma * (1 - batch.done) * target_critic_network
+        critic_network = self.critic.forward(torch.cat((batch.actions, batch.states), dim = 1))
+        loss_vector = (y - critic_network) ** 2
+        mean_square_error = loss_vector.mean()
 
-        q_loss = 0.0
-        p_loss = 0.0
+        # Backpropagate gradients
+        self.critic.zero_grad()
+        mean_square_error.backward()
+        self.critic_optim.step()
+
+        ## Updating actor network
+        actor_network = self.actor.forward(batch.states)
+       
+        Q = self.critic.forward(torch.cat((actor_network, batch.states), dim = 1))
+        loss = - Q.mean()
+        
+        # Backpropagate loss
+        self.actor.zero_grad()
+        loss.backward()
+        self.policy_optim.step()
+
+        ## Update target critic and actor parameters
+        self.critic_target.soft_update(self.critic, self.tau)
+        self.actor_target.soft_update(self.actor, self.tau)
+
+        q_loss = mean_square_error
+        p_loss = loss
         return {
             "q_loss": q_loss,
             "p_loss": p_loss,

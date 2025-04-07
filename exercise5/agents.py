@@ -162,6 +162,7 @@ class DQN(Agent):
         self.epsilon_start = epsilon_start
         self.epsilon_min = epsilon_min
 
+
         self.epsilon_decay_strategy = epsilon_decay_strategy
         if epsilon_decay_strategy == "constant":
             assert epsilon_decay is None, "epsilon_decay should be None for epsilon_decay_strategy == 'constant'"
@@ -179,6 +180,12 @@ class DQN(Agent):
             assert exploration_fraction is None, "exploration_fraction is only set for epsilon_decay_strategy='linear'"
             self.epsilon_exponential_decay_factor = epsilon_decay
             self.exploration_fraction = None
+        # Adding log strategy
+        elif self.epsilon_decay_strategy == "log":
+            # For new decay strategy
+            self.timestep_counter = 0
+            self.t_max = 350000
+            self.scaling_factor = 1
         else:
             raise ValueError("epsilon_decay_strategy must be either 'linear' or 'exponential'")
         # ######################################### #
@@ -223,6 +230,24 @@ class DQN(Agent):
             epsilon = self.epsilon * self.epsilon_exponential_decay_factor ** (timestep/max_timestep)
             self.epsilon = max(epsilon, self.epsilon_min) # as told to implement in drop in lab
 
+        def epsilon_log_decay():
+            # if timestep = 0, epsilon = epsilon start
+            if timestep == 0:
+                self.epsilon = self.epsilon_start
+                self.timestep_counter += 1
+                return
+            
+            if self.timestep_counter == 1: # The first log value we calculate - have to normalise by this
+                first_log_value = np.log(self.t_max - timestep)
+                self.scaling_factor = self.epsilon_start / first_log_value
+                self.timestep_counter += 1
+            
+            if self.t_max - timestep < 1: # This would cause an error in log calculation
+                self.epsilon = self.epsilon_min
+                return
+
+            self.epsilon = max(self.epsilon_min, self.scaling_factor * np.log(self.t_max - timestep)) # Ensures we return at least self.epsilon_min
+
 
         if self.epsilon_decay_strategy == "constant":
             pass
@@ -234,6 +259,8 @@ class DQN(Agent):
             # exponential decay
             ### PUT YOUR CODE HERE ###
             epsilon_exponential_decay()
+        elif self.epsilon_decay_strategy == "log":
+            epsilon_log_decay()
         else:
             raise ValueError("epsilon_decay_strategy must be either 'constant', 'linear' or 'exponential'")
 
@@ -264,10 +291,11 @@ class DQN(Agent):
         # Not sure yet if this should return a batch of indices or just one. It seems the batch size is only to do with the update
         # and the action is just taking one action at each specific timestep. Therefore, should just return the index of the specific action
         # Training seems to be done in the same format as the q_learning, so can return the index of the selected action
-
+        # print('DBUG: action index: ', action_index)
         if explore and np.random.random() < self.epsilon:
             return self.action_space.sample()
-                # sample() returns an integer representing a random sample from the action space   
+                # sample() returns an integer representing a random sample from the action space
+                # print('DBUG random sample: ', self.action_space.sample())   
         else:
             action_index = torch.argmax(output, dim=1).item() # Item converts the torch tensor to an index. Not sure if it is necessary
             return action_index
@@ -306,23 +334,28 @@ class DQN(Agent):
         # Don't need gradients for the target network
         with torch.no_grad():
             target_q_values = self.critics_target.forward(next_states)
+            # print('DBUG target_q_values shape', target_q_values.shape)
             max_target_q_values = torch.max(target_q_values, dim=1)[0]  # Max returns max values (as a tensor) as well as max indices (as a tensor). Index with [0] to get max values
-           
+            # print('DBUG: max target q values shape: ', max_target_q_values.shape)
+        # print('DBUG done shape: ', done.shape)
 
         # Zero out values for terminal states. This will result in y just being reward. Have to squeeze done as it is of shape [64, 1] which results in incorrect
         # broadcasting with max_target_q_values which is of shape [64]
         max_target_q_values = max_target_q_values * (1 - done.squeeze())  
-        
+        # print('DBUG: max target q values after masking shape and type : ', max_target_q_values.shape)
+        # print('DBUG rewards shape: ', rewards.shape)
+        # print('DBUG gamma*max_target_q_values shape: ', (self.gamma * max_target_q_values).shape)
         # Reward is of shape [64, 1], so need to squeeze it to be of shape [64], so that y is also of shape [64]
         y = rewards.squeeze() + self.gamma * max_target_q_values
-       
+        # print('DBUG y shape', y.shape)
 
         # Calculate critics net q values 
         q_values = self.critics_net.forward(states)
+        # print('DBUG q_values shape:', q_values.shape)
 
         # Have to get the Q value of the action actually taken.
         q_values_taken = q_values[torch.arange(q_values.shape[0]), actions.squeeze()] # q_values[0] contains the batch size. Actions is of shape [64, 1], so have to squeeze to get to shape [64] for correct indexing of q_values
-
+        # print('DBUG q_values_taken shape: ', q_values_taken.shape)
         loss_vector = (y - q_values_taken)**2
 
         mean_square_error = loss_vector.mean()

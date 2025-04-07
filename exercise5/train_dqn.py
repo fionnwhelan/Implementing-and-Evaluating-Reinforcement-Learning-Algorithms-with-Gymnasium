@@ -1,6 +1,6 @@
 import copy
 import pickle
-
+import os
 import gymnasium as gym
 import numpy as np
 import time
@@ -11,14 +11,14 @@ import matplotlib.pyplot as plt
 
 from rl2025.constants import EX3_DQN_CARTPOLE_CONSTANTS as CARTPOLE_CONSTANTS
 from rl2025.constants import EX3_DQN_MOUNTAINCAR_CONSTANTS as MOUNTAINCAR_CONSTANTS
-from rl2025.exercise3.agents import DQN
+from rl2025.exercise5.agents import DQN
 from rl2025.exercise3.replay import ReplayBuffer
 from rl2025.util.hparam_sweeping import generate_hparam_configs
 from rl2025.util.result_processing import Run
 
 RENDER = False # FALSE FOR FASTER TRAINING / TRUE TO VISUALIZE ENVIRONMENT DURING EVALUATION
-SWEEP = False # TRUE TO SWEEP OVER POSSIBLE HYPERPARAMETER CONFIGURATIONS
-NUM_SEEDS_SWEEP = 10 # NUMBER OF SEEDS TO USE FOR EACH HYPERPARAMETER CONFIGURATION
+SWEEP = True # TRUE TO SWEEP OVER POSSIBLE HYPERPARAMETER CONFIGURATIONS
+NUM_SEEDS_SWEEP = 5 # NUMBER OF SEEDS TO USE FOR EACH HYPERPARAMETER CONFIGURATION
 SWEEP_SAVE_RESULTS = True # TRUE TO SAVE SWEEP RESULTS TO A FILE
 SWEEP_SAVE_ALL_WEIGHTS = False # TRUE TO SAVE ALL WEIGHTS FROM EACH SEED
 ENV = "MOUNTAINCAR" # "CARTPOLE" is also possible if you uncomment the corresponding code, but is not assessed for DQN.
@@ -32,11 +32,11 @@ MOUNTAINCAR_CONFIG = {
     "hidden_size": (64,64),
     "target_update_freq": 2000,
     "batch_size": 64,
-    "epsilon_decay_strategy": "constant", # "constant" or "linear" or "exponential"
-    "epsilon_start": 0.5,
+    "epsilon_decay_strategy": "log", # "constant" or "linear" or "exponential"
+    "epsilon_start": 1.0,
     "epsilon_min": 0.05, # only used in linear and exponential decay strategies
-    "epsilon_decay": None, # For exponential epsilon decay
-    "exploration_fraction": None, # For linear epsilon decay, fraction of training time at which epsilon=epsilon_min
+    "epsilon_decay": None, # For exponential epsilon decay (0.5)
+    "exploration_fraction": 0.01, # For linear epsilon decay, fraction of training time at which epsilon=epsilon_min
     "buffer_capacity": int(1e6),
     "plot_loss": False, # SET TRUE FOR 3.3 (Understanding the Loss)
 }
@@ -45,7 +45,7 @@ MOUNTAINCAR_CONFIG.update(MOUNTAINCAR_CONSTANTS)
 
 MOUNTAINCAR_HPARAMS_LINEAR_DECAY = {
     "epsilon_start": [1.0,],
-    "exploration_fraction": [0.99, 0.75, 0.01]
+    "exploration_fraction": [0.01] # Completed 0.99 separately original - [0.99, 0.75, 0.01]
     }
 
 MOUNTAINCAR_HPARAMS_EXP_DECAY = {
@@ -57,10 +57,12 @@ if MOUNTAINCAR_CONFIG['epsilon_decay_strategy'] == "linear":
     MOUNTAINCAR_HPARAMS = MOUNTAINCAR_HPARAMS_LINEAR_DECAY
 elif MOUNTAINCAR_CONFIG['epsilon_decay_strategy'] == "exponential":
     MOUNTAINCAR_HPARAMS = MOUNTAINCAR_HPARAMS_EXP_DECAY
+elif MOUNTAINCAR_CONFIG['epsilon_decay_strategy'] == "log":
+    MOUNTAINCAR_HPARAMS = MOUNTAINCAR_HPARAMS_EXP_DECAY # Just copy params from exponential
 else:
     MOUNTAINCAR_HPARAMS = None
 
-SWEEP_RESULTS_FILE_MOUNTAINCAR = f"DQN-MountainCar-sweep-decay-{MOUNTAINCAR_CONFIG['epsilon_decay_strategy']}-results.pkl"
+SWEEP_RESULTS_FILE_MOUNTAINCAR = f"EX3_outputs/DQN-MountainCar-sweep-decay-{MOUNTAINCAR_CONFIG['epsilon_decay_strategy']}-results.pkl"
 
 CARTPOLE_CONFIG = {
     "eval_freq": 2000,
@@ -149,6 +151,9 @@ def train(env: gym.Env, config, output: bool = True) -> Tuple[np.ndarray, np.nda
 
     start_time = time.time()
     run_data = defaultdict(list)
+
+    epsilons = []
+    timesteps = []
     with tqdm(total=config["max_timesteps"]) as pbar:
         while timesteps_elapsed < config["max_timesteps"]:
             elapsed_seconds = time.time() - start_time
@@ -156,6 +161,9 @@ def train(env: gym.Env, config, output: bool = True) -> Tuple[np.ndarray, np.nda
                 pbar.write(f"Training ended after {elapsed_seconds}s.")
                 break
             agent.schedule_hyperparameters(timesteps_elapsed, config["max_timesteps"])
+            # Saving the epsilon and timesteps in lists for plotting
+            epsilons.append(agent.epsilon)
+            timesteps.append(timesteps_elapsed)
             episode_timesteps, ep_return, ep_data = play_episode(
                 env,
                 agent,
@@ -174,7 +182,7 @@ def train(env: gym.Env, config, output: bool = True) -> Tuple[np.ndarray, np.nda
 
             if timesteps_elapsed % config["eval_freq"] < episode_timesteps:
                 eval_returns = 0
-                if config["env"] == "CartPole-v0" or config["env"] == "MountainCar-v0":
+                if config["env"] == "CartPole-v1" or config["env"] == "MountainCar-v0": # Changed to CartPole-v1
                     max_steps = config["episode_length"]
                 else:
                     raise ValueError(f"Unknown environment {config['env']}")
@@ -203,7 +211,25 @@ def train(env: gym.Env, config, output: bool = True) -> Tuple[np.ndarray, np.nda
         # you may add logging of additional metrics here
         run_data["train_timesteps"] = (config["batch_size"] * np.arange(1, len(run_data["q_loss"]) + 1)).tolist()
         run_data["train_episodes"] = np.arange(1, len(run_data["train_ep_returns"]) + 1).tolist()
+    
+    # Plot timesteps vs epsilons
+    # if timesteps and epsilons:
+    #     plt.figure(figsize=(10, 6))
+    #     plt.plot(timesteps, epsilons, '-', alpha=0.7)
+    #     plt.xlabel("Timesteps", fontsize=15)
+    #     plt.ylabel("Epsilon", fontsize=15)
+    #     plt.title(f"Epsilon Decay Strategy: {config['epsilon_decay_strategy']} (t max = {agent.t_max})", fontsize=18)
+    #     plt.grid(True, alpha=0.3)
+    #     plt.tight_layout()
         
+    #     # Save the plot to file
+    #     decay_strategy = config['epsilon_decay_strategy']
+    #     if not os.path.exists("EX5_outputs"):
+    #         os.makedirs("EX5_outputs")
+    #     plt.savefig(f"EX5_outputs/epsilon_decay_{decay_strategy}_{agent.t_max}.png")
+        
+
+
     if config["save_filename"]:
         print("\nSaving to: ", agent.save(config["save_filename"]))
 
@@ -237,23 +263,28 @@ if __name__ == "__main__":
     env = gym.make(CONFIG["env"])
 
     if SWEEP and HPARAMS_SWEEP is not None:
+        print('Sweeping')
         config_list, swept_params = generate_hparam_configs(CONFIG, HPARAMS_SWEEP)
         results = []
         for config in config_list:
             run = Run(config)
-            hparams_values = '_'.join([':'.join([key, str(config[key])]) for key in swept_params])
+            hparams_values = '_'.join([''.join([key, str(config[key])]) for key in swept_params]) # removed ':' for saving in windows
             run.run_name = hparams_values
+            print('hparams_values: ', hparams_values)
             print(f"\nStarting new run...")
             for i in range(NUM_SEEDS_SWEEP):
                 print(f"\nTraining iteration: {i+1}/{NUM_SEEDS_SWEEP}")
                 run_save_filename = '--'.join([run.config["algo"], run.config["env"], hparams_values, str(i)])
                 if SWEEP_SAVE_ALL_WEIGHTS:
                     run.set_save_filename(run_save_filename)
-                eval_returns, eval_timesteps, times, run_data = train(env, run.config, output=False)
+                eval_returns, eval_timesteps, times, run_data = train(env, run.config, output=True)
+                
                 run.update(eval_returns, eval_timesteps, times, run_data)
+            run.detach_tensors()
             results.append(copy.deepcopy(run))
             print(f"Finished run with hyperparameters {hparams_values}. "
                   f"Mean final score: {run.final_return_mean} +- {run.final_return_ste}")
+
 
         if SWEEP_SAVE_RESULTS:
             print(f"Saving results to {SWEEP_RESULTS_FILE}")

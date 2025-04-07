@@ -6,10 +6,15 @@ import numpy as np
 from rl2025.exercise4.agents import DDPG
 from rl2025.exercise4.train_ddpg import RACETRACK_CONFIG, play_episode
 
-
 RENDER = False
 
+# MAKE SURE TO ACTIVATE RL_COURSE ENVIRONMENT - OTHERWISE MODEL WONT LOAD CORRECTLY DUE TO DIFFERENT PYTORCH VERSION
 CONFIG = RACETRACK_CONFIG
+CONFIG.update({
+    'save_filename': 'fionn_goes_fast.pt',
+    'critic_hidden_size': [64, 128, 64],
+    'policy_hidden_size': [64, 128, 64]
+})
 
 
 def evaluate(env: gym.Env, config: Dict, output: bool = True) -> Tuple[List[float], List[float]]:
@@ -33,12 +38,13 @@ def evaluate(env: gym.Env, config: Dict, output: bool = True) -> Tuple[List[floa
     try:
         agent.restore(config['save_filename'])
     except:
+        
         raise ValueError(f"Could not find model to load at {config['save_filename']}")
 
     eval_returns_all = []
     eval_times_all = []
 
-    for loop in range(3):
+    for loop in range(10):
         eval_returns = 0
         for _ in range(config["eval_episodes"]):
             _, episode_return, _ = play_episode(

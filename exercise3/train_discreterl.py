@@ -15,7 +15,7 @@ from rl2025.util.hparam_sweeping import generate_hparam_configs
 from rl2025.util.result_processing import Run
 
 RENDER = False # FALSE FOR FASTER TRAINING / TRUE TO VISUALIZE ENVIRONMENT DURING EVALUATION
-SWEEP = False # TRUE TO SWEEP OVER POSSIBLE HYPERPARAMETER CONFIGURATIONS
+SWEEP = True # TRUE TO SWEEP OVER POSSIBLE HYPERPARAMETER CONFIGURATIONS
 NUM_SEEDS_SWEEP = 10 # NUMBER OF SEEDS TO USE FOR EACH HYPERPARAMETER CONFIGURATION
 SWEEP_SAVE_RESULTS = True # TRUE TO SAVE SWEEP RESULTS TO A FILE
 SWEEP_SAVE_ALL_WEIGHTS = False # TRUE TO SAVE ALL WEIGHTS FROM EACH SEED
@@ -40,6 +40,11 @@ MOUNTAINCAR_CONFIG = {
 
 MOUNTAINCAR_CONFIG.update(MOUNTAINCAR_CONSTANTS)
 
+# Adding learning rate
+MOUNTAINCAR_HPARAMS_LEARNING_RATE = {
+    "learning_rate": [0.02, 0.002, 0.0002]
+    }
+
 MOUNTAINCAR_HPARAMS_LINEAR_DECAY = {
     "epsilon_start": [1.0,],
     "exploration_fraction": [0.99, 0.75, 0.01]
@@ -55,9 +60,10 @@ if MOUNTAINCAR_CONFIG['epsilon_decay_strategy'] == "linear":
 elif MOUNTAINCAR_CONFIG['epsilon_decay_strategy'] == "exponential":
     MOUNTAINCAR_HPARAMS = MOUNTAINCAR_HPARAMS_EXP_DECAY
 else:
-    MOUNTAINCAR_HPARAMS = None
+    MOUNTAINCAR_HPARAMS = MOUNTAINCAR_HPARAMS_LEARNING_RATE # Changed to learning rate (was None)
 
-SWEEP_RESULTS_FILE_MOUNTAINCAR = f"DiscreteRL-MountainCar-sweep-decay-{MOUNTAINCAR_CONFIG['epsilon_decay_strategy']}-results.pkl"
+#SWEEP_RESULTS_FILE_MOUNTAINCAR = f"DiscreteRL-MountainCar-sweep-decay-{MOUNTAINCAR_CONFIG['epsilon_decay_strategy']}-results.pkl"
+SWEEP_RESULTS_FILE_MOUNTAINCAR = f"DiscreteRL-MountainCar-sweep-decay-{MOUNTAINCAR_HPARAMS['learning_rate']}-results.pkl"
 
 
 
@@ -111,28 +117,20 @@ def play_episode(
     num_steps = 0
     episode_return = 0
 
-    observations = []
-    actions = []
-    rewards = []
-
     while not done and num_steps < max_steps:
         action = agent.act(np.array(obs), explore=explore)
         nobs, rew, terminated, truncated, _ = env.step(action)
         done = terminated or truncated
 
-        observations.append(obs)
-        actions.append(action)
-        rewards.append(rew)
+        if train:
+            # Update agent after each step with (s, a, r, s', done) tuple
+            q_value = agent.update(obs, action, rew, nobs, done)
+            ep_data['q_values'].append(q_value)
 
         num_steps += 1
         episode_return += rew
 
         obs = nobs
-
-    if train:
-        new_data = agent.update(rewards, observations, actions)
-        for k, v in new_data.items():
-            ep_data[k].append(v)
 
     return num_steps, episode_return, ep_data
 
@@ -183,7 +181,7 @@ def train(env: gym.Env, config, output: bool = True) -> Tuple[np.ndarray, np.nda
 
             if timesteps_elapsed % config["eval_freq"] < num_steps:
                 eval_return = 0
-                if config["env"] == "CartPole-v1":
+                if config["env"] == "CartPole-v1" or config["env"] == "MountainCar-v0":
                     max_steps = config["episode_length"]
                 else:
                     raise ValueError(f"Unknown environment {config['env']}")
@@ -216,7 +214,7 @@ def train(env: gym.Env, config, output: bool = True) -> Tuple[np.ndarray, np.nda
 
 
 if __name__ == "__main__":
-
+    print(ENV)
     if ENV == "MOUNTAINCAR":
         CONFIG = MOUNTAINCAR_CONFIG
         HPARAMS_SWEEP = MOUNTAINCAR_HPARAMS
@@ -235,7 +233,7 @@ if __name__ == "__main__":
         results = []
         for config in config_list:
             run = Run(config)
-            hparams_values = '_'.join([':'.join([key, str(config[key])]) for key in swept_params])
+            hparams_values = '_'.join(['-'.join([key, str(config[key])]) for key in swept_params])
             run.run_name = hparams_values
             print(f"\nStarting new run...")
             for i in range(NUM_SEEDS_SWEEP):
@@ -249,6 +247,13 @@ if __name__ == "__main__":
             print(f"Finished run with hyperparameters {hparams_values}. "
                   f"Mean final score: {run.final_return_mean} +- {run.final_return_ste}")
 
+            # Saving results to a txt file for ease
+            results_file = f"EX3_outputs/discrete_returns/{hparams_values}.txt"
+            
+            with open(results_file, 'w') as f:
+                f.write(f"Finished run with hyperparameters {hparams_values}.\n")
+                f.write(f"Mean final score: {run.final_return_mean} +- {run.final_return_ste}\n")
+                
         if SWEEP_SAVE_RESULTS:
             with open(SWEEP_RESULTS_FILE, 'wb') as f:
                 pickle.dump(results, f)

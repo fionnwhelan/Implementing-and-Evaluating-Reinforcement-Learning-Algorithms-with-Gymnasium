@@ -8,6 +8,7 @@ import time
 from tqdm import tqdm
 from typing import List, Tuple, Dict
 import matplotlib.pyplot as plt
+import highway_env.envs.racetrack_env
 
 from rl2025.constants import EX4_RACETRACK_CONSTANTS as RACETRACK_CONSTANTS
 from rl2025.exercise4.agents import DDPG
@@ -16,26 +17,27 @@ from rl2025.util.hparam_sweeping import generate_hparam_configs
 from rl2025.util.result_processing import Run
 
 RENDER = False # FALSE FOR FASTER TRAINING / TRUE TO VISUALIZE ENVIRONMENT DURING EVALUATION
-SWEEP = False # TRUE TO SWEEP OVER POSSIBLE HYPERPARAMETER CONFIGURATIONS
-NUM_SEEDS_SWEEP = 10 # NUMBER OF SEEDS TO USE FOR EACH HYPERPARAMETER CONFIGURATION
+SWEEP = True # TRUE TO SWEEP OVER POSSIBLE HYPERPARAMETER CONFIGURATIONS
+NUM_SEEDS_SWEEP = 1 # NUMBER OF SEEDS TO USE FOR EACH HYPERPARAMETER CONFIGURATION
 SWEEP_SAVE_RESULTS = True # TRUE TO SAVE SWEEP RESULTS TO A FILE
-SWEEP_SAVE_ALL_WEIGTHS = False # TRUE TO SAVE ALL WEIGHTS FROM EACH SEED
+SWEEP_SAVE_ALL_WEIGTHS = True # TRUE TO SAVE ALL WEIGHTS FROM EACH SEED
 ENV = "RACETRACK"
+CUSTOM_HPARAM_TUNING = True
 
 RACETRACK_CONFIG = {
-    "critic_hidden_size": [32, 32, 32],
-    "policy_hidden_size": [32, 32, 32],
+    "critic_hidden_size": [64, 128, 64],
+    "policy_hidden_size": [64, 128, 64]
 }
 RACETRACK_CONFIG.update(RACETRACK_CONSTANTS)
 
 
 ### INCLUDE YOUR CHOICE OF HYPERPARAMETERS HERE ###
 RACETRACK_HPARAMS = {
-    "critic_hidden_size": ...,
-    "policy_hidden_size": ...,
+    "critic_hidden_size": [[64, 128, 64]],
+    "policy_hidden_size": [[64, 128, 64]]
     }
 
-SWEEP_RESULTS_FILE_RACETRACK = "DDPG-Racetrack-sweep-results-ex4.pkl"
+SWEEP_RESULTS_FILE_RACETRACK = "EX4_outputs/DDPG-Racetrack-sweep-results-ex4.pkl"
 
 
 def play_episode(
@@ -180,39 +182,40 @@ def train(env: gym.Env, env_eval: gym.Env, config: Dict, output: bool = True) ->
 if __name__ == "__main__":
     if ENV == "RACETRACK":
         CONFIG = RACETRACK_CONFIG
-        HPARAMS_SWEEP = None # Not required for assignment
-        SWEEP_RESULTS_FILE = None # Not required for assignment
+        HPARAMS_SWEEP = RACETRACK_HPARAMS
+        SWEEP_RESULTS_FILE = SWEEP_RESULTS_FILE_RACETRACK # Not required for assignment
     else:
         raise(ValueError(f"Unknown environment {ENV}"))
-
+    
     env = gym.make(CONFIG["env"])
     env_eval = gym.make(CONFIG["env"])
 
     if SWEEP and HPARAMS_SWEEP is not None:
-        qqq
         config_list, swept_params = generate_hparam_configs(CONFIG, HPARAMS_SWEEP)
         results = []
         for config in config_list:
             run = Run(config)
-            hparams_values = '_'.join([':'.join([key, str(config[key])]) for key in swept_params])
+            # Create a filename-safe string by replacing illegal characters
+            hparams_values = '_'.join([key + '_' + str(config[key]).replace('[', '').replace(']', '').replace(',', '-').replace(' ', '').replace(':', '_') for key in swept_params])
             run.run_name = hparams_values
             print(f"\nStarting new run...")
             for i in range(NUM_SEEDS_SWEEP):
                 print(f"\nTraining iteration: {i+1}/{NUM_SEEDS_SWEEP}")
-                run_save_filename = '--'.join([run.config["algo"], run.config["env"], hparams_values, str(i)])
+                run_save_filename = '--'.join([run.config["algo"], run.config["env"], hparams_values, str(i), 'v_2'])
                 if SWEEP_SAVE_ALL_WEIGTHS:
                     run.set_save_filename(run_save_filename)
-                eval_returns, eval_timesteps, times, run_data = train(env, run.config, output=False)
+                eval_returns, eval_timesteps, times, run_data = train(env, env_eval, run.config, output=True)
                 run.update(eval_returns, eval_timesteps, times, run_data)
+            run.detach_tensors() # Added as Tensors don't allow deepcopy
             results.append(copy.deepcopy(run))
             print(f"Finished run with hyperparameters {hparams_values}. "
                   f"Mean final score: {run.final_return_mean} +- {run.final_return_ste}")
+            
 
         if SWEEP_SAVE_RESULTS:
             print(f"Saving results to {SWEEP_RESULTS_FILE}")
             with open(SWEEP_RESULTS_FILE, 'wb') as f:
                 pickle.dump(results, f)
-
     else:
         _ = train(env, env_eval, CONFIG)
 

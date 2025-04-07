@@ -92,7 +92,8 @@ def train(env, config):
 
         total_reward += episodic_return
 
-        if eps_num > 0 and eps_num % config["eval_freq"] == 0:
+        # if eps_num > 0 and eps_num % config["eval_freq"] == 0:
+        if eps_num == 10000:
             mean_return, negative_returns = q_learning_eval(env, config, agent.q_table)
             tqdm.write(f"EVALUATION: EP {eps_num} - MEAN RETURN {mean_return}")
             evaluation_return_means.append(mean_return)
@@ -101,38 +102,38 @@ def train(env, config):
     return total_reward, evaluation_return_means, evaluation_negative_returns, agent.q_table
 
 # The original training section
-# if __name__ == "__main__":
-#     env = gym.make(CONFIG["env"])
-#     total_reward, _, _, q_table = train(env, CONFIG)
-
 if __name__ == "__main__":
     env = gym.make(CONFIG["env"])
-    configurations = [{"gamma": 0.99}, {"gamma": 0.8}]
-    gamma_final_eval_returns = {}
-    mean_final_eval_returns = {}
-    for config in configurations:
-        CONFIG.update(config)
-        gamma_final_eval_returns[CONFIG['gamma']] = []
-        for _ in range(10):
-            total_reward, evaluation_return_means, _, q_table = train(env, CONFIG)
-            gamma_final_eval_returns[CONFIG['gamma']].append(evaluation_return_means[-1])
-        mean_final_eval_returns[CONFIG['gamma']] = sum(gamma_final_eval_returns[CONFIG['gamma']]) / len(gamma_final_eval_returns[CONFIG['gamma']])
+    total_reward, evaluation_return_means, _, q_table = train(env, CONFIG)
+    
+# if __name__ == "__main__":
+#     env = gym.make(CONFIG["env"])
+#     configurations = [{"gamma": 0.99}, {"gamma": 0.8}]
+#     gamma_final_eval_returns = {}
+#     mean_final_eval_returns = {}
+#     for config in configurations:
+#         CONFIG.update(config)
+#         gamma_final_eval_returns[CONFIG['gamma']] = []
+#         for _ in range(10):
+#             total_reward, evaluation_return_means, _, q_table = train(env, CONFIG)
+#             gamma_final_eval_returns[CONFIG['gamma']].append(evaluation_return_means[-1])
+#         mean_final_eval_returns[CONFIG['gamma']] = sum(gamma_final_eval_returns[CONFIG['gamma']]) / len(gamma_final_eval_returns[CONFIG['gamma']])
 
-    # Save the evaluation returns to a file
+#     # Save the evaluation returns to a file
 
-    if not os.path.exists('outputs'):
-        os.makedirs('outputs')
+#     if not os.path.exists('EX2_ouputs/slippery_false'):
+#         os.makedirs('EX2_ouputs/slippery_false')
         
-    with open('outputs/q_learning_eval_returns.txt', 'w') as f:
-        f.write("Mean final evaluation returns for different gamma values:\n")
-        for gamma, mean_return in mean_final_eval_returns.items():
-            f.write(f"Gamma {gamma}: {mean_return}\n")
+#     with open('EX2_ouputs/slippery_false/q_learning_eval_returns.txt', 'w') as f:
+#         f.write("Slippery = False. \nMean final evaluation returns for different gamma values:\n")
+#         for gamma, mean_return in mean_final_eval_returns.items():
+#             f.write(f"Gamma {gamma}: {mean_return}\n")
         
-        f.write("\nAll final evaluation returns for different gamma values:\n")
-        for gamma, returns in gamma_final_eval_returns.items():
-            f.write(f"Gamma {gamma}: {returns}\n")
+#         f.write("\nAll final evaluation returns for different gamma values:\n")
+#         for gamma, returns in gamma_final_eval_returns.items():
+#             f.write(f"Gamma {gamma}: {returns}\n")
 
-    print("Evaluation returns saved to q_learning_eval_returns.txt")
+#     print("Evaluation returns saved to q_learning_eval_returns.txt")
 
 
 

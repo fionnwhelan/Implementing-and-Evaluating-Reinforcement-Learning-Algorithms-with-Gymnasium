@@ -1,6 +1,7 @@
 import numpy as np
 from typing import Dict, List, Tuple
 from collections import defaultdict
+import torch
 
 
 class Run:
@@ -38,6 +39,24 @@ class Run:
             print(f"Warning: Save filename already set in config. Overwriting to {filename}.")
 
         self._config['save_filename'] = f"{filename}.pt"
+
+    def detach_tensors(self):
+        """Convert all PyTorch tensors in lists or dicts to NumPy arrays."""
+        def convert_to_numpy(obj):
+            if isinstance(obj, torch.Tensor):
+                return obj.detach().cpu().numpy()
+            elif isinstance(obj, list):
+                return [convert_to_numpy(item) for item in obj]
+            elif isinstance(obj, dict):
+                return {key: convert_to_numpy(value) for key, value in obj.items()}
+            else:
+                return obj  # Leave unchanged if not a tensor
+
+        self._final_returns = convert_to_numpy(self._final_returns)
+        self._train_times = convert_to_numpy(self._train_times)
+        self._all_eval_timesteps = convert_to_numpy(self._all_eval_timesteps)
+        self._all_returns = convert_to_numpy(self._all_returns)
+        self._run_data = convert_to_numpy(self._run_data)
 
     @property
     def run_name(self):
